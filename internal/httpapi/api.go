@@ -107,7 +107,13 @@ func (a *API) verify(w http.ResponseWriter, r *http.Request) {
 	v := jwt.Verifier{Secret: a.secret, Leeway: a.leeway, Now: a.now}
 	claims, err := v.Verify(req.Token)
 	if err != nil {
-		writeJSON(w, http.StatusOK, map[string]any{"valid": false, "error": err.Error()})
+		resp := map[string]any{"valid": false, "error": err.Error()}
+		// For time-based failures the token structure and signature are valid,
+		// so include the decoded claims to let clients inspect token ownership.
+		if errors.Is(err, jwt.ErrTokenExpired) || errors.Is(err, jwt.ErrTokenNotYetValid) {
+			resp["claims"] = claims
+		}
+		writeJSON(w, http.StatusOK, resp)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"valid": true, "claims": claims})
